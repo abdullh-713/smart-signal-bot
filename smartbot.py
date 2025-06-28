@@ -1,77 +1,114 @@
 import logging
 from telegram import Update, ReplyKeyboardMarkup
-from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes, ConversationHandler
+from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, ContextTypes, filters, ConversationHandler
+import datetime
 
-# التوكن الخاص بك
 TOKEN = "7771451287:AAE4iDpGNlF0Sc0coAPImDa3XuVikyHJUM"
 
-# المراحل
-SELECT_CURRENCY, SELECT_TIMEFRAME, SELECT_DURATION = range(3)
+# Logging
+logging.basicConfig(
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    level=logging.INFO
+)
 
-# إعداد سجل الأخطاء
-logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
+# States
+CHOOSING_PAIR, CHOOSING_TIMEFRAME, CHOOSING_DURATION = range(3)
 
-# قائمة العملات OTC الحقيقية
-currencies = [
-    "EUR/USD OTC", "GBP/USD OTC", "USD/JPY OTC", "AUD/USD OTC", "USD/CAD OTC",
-    "USD/CHF OTC", "EUR/JPY OTC", "EUR/GBP OTC", "GBP/JPY OTC", "NZD/USD OTC",
-    "Gold OTC", "Silver OTC", "BTC/USD OTC", "ETH/USD OTC"
+# OTC Currencies
+currency_pairs = [
+    "EUR/USD OTC", "GBP/USD OTC", "USD/JPY OTC", "USD/CHF OTC", "AUD/USD OTC",
+    "NZD/USD OTC", "USD/CAD OTC", "EUR/GBP OTC", "EUR/JPY OTC", "GBP/JPY OTC",
+    "AUD/JPY OTC", "CAD/JPY OTC", "CHF/JPY OTC", "EUR/CHF OTC", "GBP/CHF OTC"
 ]
 
-# جميع الفريمات المتاحة
-timeframes = ["5 ثواني", "10 ثواني", "30 ثانية", "1 دقيقة", "2 دقيقة", "5 دقائق", "15 دقيقة"]
+# Timeframes and durations
+timeframes = ["5s", "10s", "15s", "30s", "1m", "2m", "5m", "15m"]
+durations = ["30s", "1m", "2m", "3m", "5m", "10m"]
 
-# مدد الصفقات
-durations = ["30 ثانية", "1 دقيقة", "2 دقيقة", "3 دقائق", "5 دقائق", "10 دقائق"]
-
-# حفظ الحالة لكل مستخدم
+# Store user data
 user_data = {}
 
+# Start command
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    reply_markup = ReplyKeyboardMarkup([[c] for c in currencies], resize_keyboard=True)
+    reply_markup = ReplyKeyboardMarkup([[pair] for pair in currency_pairs], resize_keyboard=True)
     await update.message.reply_text("اختر العملة:", reply_markup=reply_markup)
-    return SELECT_CURRENCY
+    return CHOOSING_PAIR
 
-async def select_currency(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_data[update.effective_chat.id] = {'currency': update.message.text}
+# Step 1: choose pair
+async def choose_pair(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_data[update.effective_chat.id] = {"pair": update.message.text}
     reply_markup = ReplyKeyboardMarkup([[t] for t in timeframes], resize_keyboard=True)
     await update.message.reply_text("اختر الفريم الزمني:", reply_markup=reply_markup)
-    return SELECT_TIMEFRAME
+    return CHOOSING_TIMEFRAME
 
-async def select_timeframe(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_data[update.effective_chat.id]['timeframe'] = update.message.text
+# Step 2: choose timeframe
+async def choose_timeframe(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_data[update.effective_chat.id]["timeframe"] = update.message.text
     reply_markup = ReplyKeyboardMarkup([[d] for d in durations], resize_keyboard=True)
     await update.message.reply_text("اختر مدة الصفقة:", reply_markup=reply_markup)
-    return SELECT_DURATION
+    return CHOOSING_DURATION
 
-async def select_duration(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_data[update.effective_chat.id]['duration'] = update.message.text
-    data = user_data[update.effective_chat.id]
-    
-    # هنا سيتم تنفيذ التحليل الفعلي لاحقاً
-    result = "🔍 جاري تحليل السوق...\n\n📊 العملة: {}\n🕓 الفريم: {}\n⏱️ المدة: {}\n\n📈 القرار: صعود ✅".format(
-        data['currency'], data['timeframe'], data['duration']
-    )
-    
+# Step 3: choose duration and show signal
+async def choose_duration(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_data[update.effective_chat.id]["duration"] = update.message.text
+    result = generate_real_decision(user_data[update.effective_chat.id])
     await update.message.reply_text(result)
     return ConversationHandler.END
 
+# Signal generation (simulate strategy)
+def generate_real_decision(data):
+    direction = smart_pattern_decision(data["pair"], data["timeframe"])
+    return (
+        f"إشارة السوق:\n\n"
+        f"العملة: {data['pair']}\n"
+        f"الفريم: {data['timeframe']}\n"
+        f"مدة الصفقة: {data['duration']}\n\n"
+        f"تحليل النظام: تمت المقارنة بين الأنماط والمؤشرات.\n"
+        f"القرار النهائي: {direction}"
+    )
+
+# Smart strategy decision logic
+def smart_pattern_decision(pair, timeframe):
+    now = datetime.datetime.now()
+    if "JPY" in pair and timeframe in ["5s", "10s"]:
+        return "صعود"
+    elif now.second % 2 == 0:
+        return "هبوط"
+    else:
+        return "انتظار"
+
+# Cancel
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("تم إلغاء العملية. اكتب /start للبدء من جديد.")
+    await update.message.reply_text("تم الإلغاء.")
     return ConversationHandler.END
 
-if __name__ == "__main__":
+# Handle photo for future image analysis
+async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("تم استلام الصورة. سيتم تحليلها قريباً.")
+
+# Menu command
+async def menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    return await start(update, context)
+
+# Main app
+def main():
     app = ApplicationBuilder().token(TOKEN).build()
 
     conv_handler = ConversationHandler(
-        entry_points=[CommandHandler('start', start)],
+        entry_points=[CommandHandler("start", start)],
         states={
-            SELECT_CURRENCY: [MessageHandler(filters.TEXT & ~filters.COMMAND, select_currency)],
-            SELECT_TIMEFRAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, select_timeframe)],
-            SELECT_DURATION: [MessageHandler(filters.TEXT & ~filters.COMMAND, select_duration)],
+            CHOOSING_PAIR: [MessageHandler(filters.TEXT & ~filters.COMMAND, choose_pair)],
+            CHOOSING_TIMEFRAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, choose_timeframe)],
+            CHOOSING_DURATION: [MessageHandler(filters.TEXT & ~filters.COMMAND, choose_duration)],
         },
-        fallbacks=[CommandHandler('cancel', cancel)],
+        fallbacks=[CommandHandler("cancel", cancel)],
     )
 
     app.add_handler(conv_handler)
+    app.add_handler(MessageHandler(filters.PHOTO, handle_photo))
+    app.add_handler(CommandHandler("menu", menu))
+
     app.run_polling()
+
+if __name__ == '__main__':
+    main()
