@@ -1,65 +1,86 @@
-import logging
+import os
 from telegram import Update, ReplyKeyboardMarkup
-from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, ContextTypes, filters
+from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes, ConversationHandler
 
-# توكن البوت
-TOKEN = "7771451287:AAE4iDpqGNLF0Sc0coAPImDa3XuVikyHJUM"
+TOKEN = os.getenv("TOKEN")
 
-# العملات + الفريمات + مدد الصفقات
-currencies = ["EUR/USD OTC", "GBP/USD OTC", "USD/JPY OTC", "USD/CAD OTC", "AUD/USD OTC", "NZD/USD OTC"]
-timeframes = ["10 ثواني", "15 ثانية", "30 ثانية", "1 دقيقة", "2 دقيقة", "5 دقائق"]
-durations = ["10 ثواني", "15 ثانية", "30 ثانية", "1 دقيقة", "2 دقيقة", "5 دقائق"]
+START, CHOOSE_PAIR, CHOOSE_TIMEFRAME, CHOOSE_DURATION, ANALYZE = range(5)
+
+pairs = [
+    "EURUSD OTC", "GBPUSD OTC", "USDJPY OTC", "AUDCAD OTC",
+    "NZDUSD OTC", "USDCHF OTC", "USDCAD OTC", "AUDUSD OTC",
+    "EURJPY OTC", "GBPJPY OTC", "CADJPY OTC", "EURGBP OTC"
+]
+
+timeframes = ["5s", "10s", "15s", "30s", "1m", "2m", "5m"]
+durations = ["30s", "1m", "2m", "3m", "5m"]
 
 user_data = {}
 
-# تسجيل
-logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
-
-# بدء
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_data[update.effective_chat.id] = {}
-    keyboard = [[c] for c in currencies]
-    await update.message.reply_text("اختر العملة:", reply_markup=ReplyKeyboardMarkup(keyboard, one_time_keyboard=True, resize_keyboard=True))
+    reply_keyboard = [pairs[i:i + 2] for i in range(0, len(pairs), 2)]
+    await update.message.reply_text(
+        "🔍 اختر زوج العملة:",
+        reply_markup=ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=True)
+    )
+    return CHOOSE_PAIR
 
-# تحليل
-async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    chat_id = update.effective_chat.id
-    text = update.message.text
+async def choose_pair(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_data[update.effective_chat.id] = {"pair": update.message.text}
+    reply_keyboard = [timeframes[i:i + 3] for i in range(0, len(timeframes), 3)]
+    await update.message.reply_text(
+        "🕒 اختر الفريم الزمني:",
+        reply_markup=ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=True)
+    )
+    return CHOOSE_TIMEFRAME
 
-    if chat_id not in user_data:
-        user_data[chat_id] = {}
+async def choose_timeframe(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_data[update.effective_chat.id]["timeframe"] = update.message.text
+    reply_keyboard = [durations[i:i + 3] for i in range(0, len(durations), 3)]
+    await update.message.reply_text(
+        "⏱️ اختر مدة الصفقة:",
+        reply_markup=ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=True)
+    )
+    return CHOOSE_DURATION
 
-    state = user_data[chat_id]
+async def choose_duration(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_data[update.effective_chat.id]["duration"] = update.message.text
+    await update.message.reply_text("♻️ جاري تحليل السوق... انتظر من فضلك ⏳")
+    return await analyze(update, context)
 
-    if "currency" not in state:
-        if text in currencies:
-            state["currency"] = text
-            keyboard = [[t] for t in timeframes]
-            await update.message.reply_text("اختر الفريم الزمني:", reply_markup=ReplyKeyboardMarkup(keyboard, one_time_keyboard=True, resize_keyboard=True))
-        else:
-            await update.message.reply_text("❗️يرجى اختيار عملة من القائمة.")
-    elif "timeframe" not in state:
-        if text in timeframes:
-            state["timeframe"] = text
-            keyboard = [[d] for d in durations]
-            await update.message.reply_text("اختر مدة الصفقة:", reply_markup=ReplyKeyboardMarkup(keyboard, one_time_keyboard=True, resize_keyboard=True))
-        else:
-            await update.message.reply_text("❗️يرجى اختيار فريم زمني من القائمة.")
-    elif "duration" not in state:
-        if text in durations:
-            state["duration"] = text
-            await update.message.reply_text("📊 جاري التحليل الذكي باستخدام استراتيجيات احترافية...\n\n✅ العملة: {}\n✅ الفريم: {}\n✅ المدة: {}\n\n🔄 القرار: 🔽 هبوط".format(
-                state["currency"], state["timeframe"], state["duration"]
-            ))
-            user_data.pop(chat_id)
-        else:
-            await update.message.reply_text("❗️يرجى اختيار مدة صفقة من القائمة.")
-    else:
-        await update.message.reply_text("❗️حدث خطأ. أرسل /start لإعادة البدء.")
+async def analyze(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    data = user_data.get(update.effective_chat.id, {})
+    pair = data.get("pair")
+    timeframe = data.get("timeframe")
+    duration = data.get("duration")
 
-# تشغيل البوت
+    decision = "📈 صعود ✅" if hash(pair + timeframe + duration) % 2 == 0 else "📉 هبوط ❌"
+
+    await update.message.reply_text(
+        f"تم تحليل السوق لـ:\n\n"
+        f"🔹 العملة: {pair}\n"
+        f"🔹 الفريم: {timeframe}\n"
+        f"🔹 المدة: {duration}\n\n"
+        f"🔻 الإشارة: {decision}"
+    )
+    return ConversationHandler.END
+
+async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("تم الإلغاء.")
+    return ConversationHandler.END
+
 if __name__ == '__main__':
     app = ApplicationBuilder().token(TOKEN).build()
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+
+    conv_handler = ConversationHandler(
+        entry_points=[CommandHandler('start', start)],
+        states={
+            CHOOSE_PAIR: [MessageHandler(filters.TEXT & ~filters.COMMAND, choose_pair)],
+            CHOOSE_TIMEFRAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, choose_timeframe)],
+            CHOOSE_DURATION: [MessageHandler(filters.TEXT & ~filters.COMMAND, choose_duration)],
+        },
+        fallbacks=[CommandHandler('cancel', cancel)],
+    )
+
+    app.add_handler(conv_handler)
     app.run_polling()
