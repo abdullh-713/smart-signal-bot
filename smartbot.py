@@ -1,6 +1,9 @@
 import logging
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandler, ContextTypes
+from telegram.ext import (
+    ApplicationBuilder, CommandHandler, CallbackQueryHandler,
+    ContextTypes
+)
 
 TOKEN = '7771451287:AAE4iDpGNlF0Sc0coAPImDa3XuVikyHJUM'
 
@@ -9,7 +12,7 @@ logging.basicConfig(
     level=logging.INFO
 )
 
-# القائمة الرئيسية
+# دالة بدء التشغيل
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = [
         [InlineKeyboardButton("📊 اختر نوع العملة", callback_data='choose_asset')],
@@ -20,7 +23,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     reply_markup = InlineKeyboardMarkup(keyboard)
     await update.message.reply_text("👋 مرحباً بك في SmartPatternX_bot\nاختر ما تريد:", reply_markup=reply_markup)
 
-# التعامل مع الخيارات
+# دالة لمعالجة الضغط على الأزرار
 async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -32,11 +35,14 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif query.data == 'choose_duration':
         await query.edit_message_text("✅ تم اختيار مدة الصفقة: 2 دقيقة")
     elif query.data == 'analyze':
-        await query.edit_message_text("🔍 يتم الآن تحليل السوق... \n📉 القرار: هبوط مضمون")
+        await query.edit_message_text("🔍 يتم الآن تحليل السوق...\n📉 القرار: هبوط مضمون")
 
 # تشغيل البوت
-if __name__ == '__main__':
+def main():
     app = ApplicationBuilder().token(TOKEN).build()
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CallbackQueryHandler(button))
     app.run_polling()
+
+if __name__ == '__main__':
+    main()
