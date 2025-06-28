@@ -1,65 +1,62 @@
 import telebot
 from telebot.types import ReplyKeyboardMarkup, KeyboardButton
-import time
 import random
 
-# Telegram bot token
+# Telegram Bot Token
 TOKEN = "7771451287:AAE4iDpGNlF0Sc0coAPImDa3XuVikyHJUM"
 bot = telebot.TeleBot(TOKEN)
 
-# التحليل الذكي عبر ثغرات السوق
-def smart_analysis(asset, timeframe, duration):
-    # محاكاة التحليل الذكي المعتمد على تكرار الأنماط والثغرات
-    patterns = ["صعود", "هبوط", "انتظار"]
-    decision = random.choices(patterns, weights=[3, 3, 1])[0]  # تعزيز الدقة بنسبة أعلى
-    return f"📊 تحليل ذكي للعملة {asset}\n⏱️ الفريم: {timeframe}\n⏳ المدة: {duration} ثانية\n\n📌 القرار: {decision}"
+# الحالة المؤقتة لتخزين البيانات بين الخطوات
+user_data = {}
 
-# قائمة البداية
 @bot.message_handler(commands=['start'])
-def start(message):
+def start_handler(message):
+    chat_id = message.chat.id
     markup = ReplyKeyboardMarkup(resize_keyboard=True)
     markup.add(KeyboardButton("🔁 تحليل جديد"))
-    bot.send_message(message.chat.id, "مرحبًا بك في SmartPatternX_bot 👋\n\nاختر ما تريد:", reply_markup=markup)
+    bot.send_message(chat_id, "👋 مرحبًا بك في SmartPatternX_bot!\nاختر ما تريد:", reply_markup=markup)
 
-# اختيار العملة
-@bot.message_handler(func=lambda message: message.text == "🔁 تحليل جديد")
-def ask_asset(message):
+@bot.message_handler(func=lambda msg: msg.text == "🔁 تحليل جديد")
+def step_asset(msg):
+    chat_id = msg.chat.id
+    user_data[chat_id] = {}
     markup = ReplyKeyboardMarkup(resize_keyboard=True)
-    markup.add(KeyboardButton("EURUSD"), KeyboardButton("GBPJPY"), KeyboardButton("USDJPY"))
-    bot.send_message(message.chat.id, "💱 اختر العملة:", reply_markup=markup)
-    bot.register_next_step_handler(message, ask_timeframe)
+    markup.add("EURUSD", "GBPJPY", "USDJPY")
+    bot.send_message(chat_id, "💱 اختر العملة:", reply_markup=markup)
+    bot.register_next_step_handler(msg, step_timeframe)
 
-# اختيار الفريم
-def ask_timeframe(message):
-    asset = message.text
-    message.chat.asset = asset
+def step_timeframe(msg):
+    chat_id = msg.chat.id
+    user_data[chat_id]["asset"] = msg.text
     markup = ReplyKeyboardMarkup(resize_keyboard=True)
-    markup.add(KeyboardButton("5 ثواني"), KeyboardButton("10 ثواني"), KeyboardButton("1 دقيقة"))
-    bot.send_message(message.chat.id, "📈 اختر الفريم الزمني:", reply_markup=markup)
-    bot.register_next_step_handler(message, ask_duration)
+    markup.add("5 ثواني", "10 ثواني", "1 دقيقة")
+    bot.send_message(chat_id, "⏱️ اختر الفريم الزمني:", reply_markup=markup)
+    bot.register_next_step_handler(msg, step_duration)
 
-# اختيار مدة الصفقة
-def ask_duration(message):
-    timeframe = message.text
-    message.chat.timeframe = timeframe
+def step_duration(msg):
+    chat_id = msg.chat.id
+    user_data[chat_id]["timeframe"] = msg.text
     markup = ReplyKeyboardMarkup(resize_keyboard=True)
-    markup.add(KeyboardButton("30"), KeyboardButton("60"), KeyboardButton("120"))
-    bot.send_message(message.chat.id, "⏳ اختر مدة الصفقة (بالثواني):", reply_markup=markup)
-    bot.register_next_step_handler(message, show_result)
+    markup.add("30", "60", "120")
+    bot.send_message(chat_id, "⏳ اختر مدة الصفقة (بالثواني):", reply_markup=markup)
+    bot.register_next_step_handler(msg, final_result)
 
-# عرض النتيجة النهائية
-def show_result(message):
-    duration = message.text
-    asset = message.chat.asset
-    timeframe = message.chat.timeframe
-    result = smart_analysis(asset, timeframe, duration)
-    bot.send_message(message.chat.id, result)
+def final_result(msg):
+    chat_id = msg.chat.id
+    user_data[chat_id]["duration"] = msg.text
 
-# دعم التحليل المباشر من الشاشة (رسالة تنبيهية فقط الآن)
+    asset = user_data[chat_id]["asset"]
+    timeframe = user_data[chat_id]["timeframe"]
+    duration = user_data[chat_id]["duration"]
+
+    # تحليل ذكي (تجريبي)
+    decision = random.choice(["📈 صعود", "📉 هبوط", "⏳ انتظار"])
+    result = f"✅ التحليل الذكي للعملة {asset}\nالفريم: {timeframe}\nالمدة: {duration} ثانية\n\n📌 القرار: {decision}"
+    bot.send_message(chat_id, result)
+
 @bot.message_handler(content_types=['photo', 'document'])
-def analyze_image(message):
-    bot.send_message(message.chat.id, "📷 تم استلام الصورة.\nجارٍ تحليل الشاشة... (هذه الخاصية ستُفعّل لاحقًا بشكل مباشر)")
+def handle_image(msg):
+    bot.send_message(msg.chat.id, "📷 تم استلام الصورة. سيتم دعم التحليل المباشر من الشاشة قريبًا.")
 
-# تشغيل البوت
-print("✅ SmartPatternX_bot يعمل الآن...")
+print("✅ البوت قيد التشغيل...")
 bot.infinity_polling()
